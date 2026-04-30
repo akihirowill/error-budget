@@ -1,0 +1,47 @@
+groups:
+  - name: slo_alerts
+    rules:
+      # ── Taxa de erros atual ──────────────────────────────────────
+      - record: job:http_error_rate:ratio5m
+        expr: |
+          sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total[5m]))
+
+      # ── Burn rate (janela 1h) ────────────────────────────────────
+      - record: job:error_budget_burn_rate:1h
+        expr: |
+          (
+            sum(rate(http_requests_total{status_code=~"5.."}[1h]))
+            /
+            sum(rate(http_requests_total[1h]))
+          ) / 0.01
+
+      # ── Burn rate (janela 5m) ────────────────────────────────────
+      - record: job:error_budget_burn_rate:5m
+        expr: |
+          (
+            sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m]))
+          ) / 0.01
+
+      # ── ALERTA: burn rate alto (>2x) ────────────────────────────
+      - alert: ErrorBudgetBurnRateHigh
+        expr: job:error_budget_burn_rate:1h > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Error budget burn rate elevado"
+          description: "Burn rate está em {{ $value | printf \"%.2f\" }}x — o error budget será esgotado antes do fim da janela."
+
+      # ── ALERTA: error budget quase esgotado ─────────────────────
+      - alert: ErrorBudgetAlmostExhausted
+        expr: error_budget_consumed_ratio > 0.8
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error budget > 80% consumido"
+          description: "{{ $value | humanizePercentage }} do error budget foi consumido."

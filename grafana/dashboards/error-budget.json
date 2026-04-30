@@ -1,0 +1,320 @@
+{
+  "title": "Error Budget — SLO Dashboard",
+  "uid": "error-budget-poc",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "gauge",
+      "title": "Error Budget Consumido",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 6 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "minVizWidth": 75,
+        "minVizHeight": 75,
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "orange", "value": 0.8 },
+              { "color": "red", "value": 0.95 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "error_budget_consumed_ratio",
+          "legendFormat": "Consumido",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "gauge",
+      "title": "Error Budget Restante",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 6 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.05 },
+              { "color": "yellow", "value": 0.2 },
+              { "color": "green", "value": 0.5 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "1 - error_budget_consumed_ratio",
+          "legendFormat": "Restante",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Taxa de Erros (5m)",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 3 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.005 },
+              { "color": "red", "value": 0.01 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "job:http_error_rate:ratio5m",
+          "legendFormat": "Error Rate",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Burn Rate (1h)",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 3 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "orange", "value": 2 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "job:error_budget_burn_rate:1h",
+          "legendFormat": "Burn Rate",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "SLO Alvo",
+      "gridPos": { "x": 12, "y": 3, "w": 6, "h": 3 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "none",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit" }
+      },
+      "targets": [
+        {
+          "expr": "slo_target_ratio",
+          "legendFormat": "SLO",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Burn Rate (5m)",
+      "gridPos": { "x": 18, "y": 3, "w": 6, "h": 3 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "orange", "value": 2 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "job:error_budget_burn_rate:5m",
+          "legendFormat": "Burn Rate 5m",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Requisições por Status (rate 1m)",
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" },
+        "overrides": [
+          {
+            "matcher": { "id": "byFrameRefID", "options": "errors" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{status_code!~\"5..\"}[1m])) by (endpoint)",
+          "legendFormat": "2xx {{endpoint}}",
+          "refId": "success",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "sum(rate(http_requests_total{status_code=~\"5..\"}[1m])) by (endpoint)",
+          "legendFormat": "5xx {{endpoint}}",
+          "refId": "errors",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Error Budget Consumido ao Longo do Tempo",
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 0.8 }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": { "mode": "line+area" }
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "error_budget_consumed_ratio",
+          "legendFormat": "Budget Consumido",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Latência P50 / P95 / P99",
+      "gridPos": { "x": 0, "y": 14, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "p50 {{endpoint}}",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "p95 {{endpoint}}",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "p99 {{endpoint}}",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Burn Rate ao Longo do Tempo",
+      "gridPos": { "x": 12, "y": 14, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 2 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "job:error_budget_burn_rate:5m",
+          "legendFormat": "Burn Rate 5m",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "job:error_budget_burn_rate:1h",
+          "legendFormat": "Burn Rate 1h",
+          "datasource": "Prometheus"
+        }
+      ]
+    }
+  ]
+}

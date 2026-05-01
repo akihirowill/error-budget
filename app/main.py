@@ -145,7 +145,6 @@ def _register(endpoint: str, status: int, duration: float):
 def healthy():
     """Endpoint sempre saudável — nunca falha."""
     start = time.time()
-    time.sleep(random.uniform(0.01, 0.05))
     _register("/healthy", 200, time.time() - start)
     return {"status": "ok"}
 

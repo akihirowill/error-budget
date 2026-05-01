@@ -172,7 +172,7 @@
       },
       "targets": [
         {
-          "expr": "SLO_TARGET",
+          "expr": "slo_target_ratio",
           "legendFormat": "SLO",
           "datasource": "Prometheus"
         }
@@ -230,7 +230,7 @@
       },
       "targets": [
         {
-          "expr": "SLO_TARGET",
+          "expr": "slo_target_ratio",
           "legendFormat": "SLO Alvo",
           "datasource": "Prometheus"
         }

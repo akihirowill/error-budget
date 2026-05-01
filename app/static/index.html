@@ -724,14 +724,34 @@
     btn.textContent = '⏳ ENVIANDO...';
     btn.disabled = true;
     log(`Enviando ${count} requisições para ${selectedEp}...`, 'info');
+    
     let ok = 0, err = 0;
-    for (let i = 0; i < count; i++) {
-      try {
-        const r = await fetch(selectedEp);
-        if (r.ok) ok++; else err++;
-      } catch { err++; }
-      if ((i + 1) % 20 === 0) await refreshStatus();
+    const batchSize = 100;  // 100 requisições paralelas por vez
+    
+    for (let i = 0; i < count; i += batchSize) {
+      const batch = Math.min(batchSize, count - i);
+      const promises = [];
+      
+      // Criar batch de requisições paralelas
+      for (let j = 0; j < batch; j++) {
+        promises.push(
+          fetch(selectedEp)
+            .then(r => r.ok ? 1 : 0)
+            .catch(() => 0)
+        );
+      }
+      
+      // Aguardar todas as requisições do batch
+      const batchResults = await Promise.all(promises);
+      ok += batchResults.filter(r => r === 1).length;
+      err += batchResults.filter(r => r === 0).length;
+      
+      // Atualizar status a cada batch
+      if ((i + batch) % 200 === 0 || (i + batch) === count) {
+        await refreshStatus();
+      }
     }
+    
     log(`Tráfego concluído — ${ok} ok · ${err} erros`, err > 0 ? 'warn' : 'ok');
     trafficRunning = false;
     btn.textContent = '▶ ENVIAR';

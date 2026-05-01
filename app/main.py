@@ -1,5 +1,6 @@
 import random
 import time
+from collections import deque
 from fastapi import FastAPI, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -36,17 +37,80 @@ SLO_TARGET = Gauge(
     "SLO alvo definido (ex: 0.99 = 99%)",
 )
 
+BURN_RATE_1H = Gauge(
+    "error_budget_burn_rate_1h",
+    "Burn rate em 1h (quantos % do budget é queimado por hora)",
+)
+
+BURN_RATE_5M = Gauge(
+    "error_budget_burn_rate_5m",
+    "Burn rate em 5m (quantos % do budget é queimado por 5 minutos)",
+)
+
 # Estado interno de contagem
 _total_requests = 0
 _error_requests = 0
 _force_error_rate = 0.0   # 0.0 = sem forçar erros extras
 _slo_target = 0.99        # SLO: 99% de disponibilidade (variável)
 
+# Histórico de requisições (timestamp, é_erro) para cálculo de burn rate
+_request_history = deque(maxlen=10000)  # Manter últimas 10k requisições
+
 SLO_TARGET.set(_slo_target)
 
 # ──────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────
+def _calculate_burn_rate(window_seconds: int):
+    """
+    Calcula o burn rate normalizado para 30 dias (mês).
+    
+    Burn Rate = (error_rate_na_janela / allowed_error_rate) × (total_minutos_mês / minutos_da_janela)
+    
+    Exemplo: Burn Rate 1h = quanto do orçamento mensal queima em 1 hora
+    """
+    if not _request_history:
+        return 0
+    
+    now = time.time()
+    window_start = now - window_seconds
+    
+    # Filtrar requisições na janela
+    requests_in_window = [
+        (ts, is_error) for ts, is_error in _request_history
+        if ts >= window_start
+    ]
+    
+    if not requests_in_window:
+        return 0
+    
+    total_in_window = len(requests_in_window)
+    errors_in_window = sum(1 for _, is_error in requests_in_window if is_error)
+    error_rate = errors_in_window / total_in_window
+    allowed_error_rate = 1 - _slo_target
+    
+    if allowed_error_rate <= 0:
+        return 0
+    
+    # Burn rate bruto (quantas vezes o allowed_error_rate foi excedido)
+    burn_rate_raw = error_rate / allowed_error_rate
+    
+    # Normalizar para 30 dias (43200 minutos)
+    window_minutes = window_seconds / 60
+    month_minutes = 30 * 24 * 60  # 43200 minutos
+    burn_rate_normalized = burn_rate_raw * (month_minutes / window_minutes)
+    
+    return burn_rate_normalized
+
+
+def _update_burn_rate_metrics():
+    """Atualiza métricas de burn rate."""
+    burn_rate_1h = _calculate_burn_rate(3600)
+    burn_rate_5m = _calculate_burn_rate(300)
+    BURN_RATE_1H.set(burn_rate_1h)
+    BURN_RATE_5M.set(burn_rate_5m)
+
+
 def _update_error_budget():
     """Recalcula e expõe o consumo do error budget."""
     global _total_requests, _error_requests, _slo_target
@@ -62,11 +126,17 @@ def _update_error_budget():
 def _register(endpoint: str, status: int, duration: float):
     global _total_requests, _error_requests
     _total_requests += 1
-    if status >= 500:
+    is_error = status >= 500
+    if is_error:
         _error_requests += 1
+    
+    # Adicionar ao histórico para burn rate
+    _request_history.append((time.time(), is_error))
+    
     REQUEST_COUNT.labels(method="GET", endpoint=endpoint, status_code=str(status)).inc()
     REQUEST_LATENCY.labels(endpoint=endpoint).observe(duration)
     _update_error_budget()
+    _update_burn_rate_metrics()
 
 # ──────────────────────────────────────────
 # Endpoints da aplicação simulada
@@ -136,11 +206,14 @@ def fault_status():
 @app.post("/fault/reset")
 def reset_counters():
     """Zera os contadores de requisições (reinicia a janela do SLO)."""
-    global _total_requests, _error_requests, _force_error_rate
+    global _total_requests, _error_requests, _force_error_rate, _request_history
     _total_requests = 0
     _error_requests = 0
     _force_error_rate = 0.0
+    _request_history.clear()
     ERROR_BUDGET_CONSUMED.set(0)
+    BURN_RATE_1H.set(0)
+    BURN_RATE_5M.set(0)
     return {"reset": True}
 
 

@@ -1,0 +1,46 @@
+name: Deploy to Oracle Cloud
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.ORACLE_VM_IP }}
+          username: ${{ secrets.ORACLE_VM_USER }}
+          key: ${{ secrets.ORACLE_SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            set -e
+            
+            echo "🚀 Iniciando deploy..."
+            
+            # Navegar para o diretório do projeto
+            if [ ! -d "error-budget" ]; then
+              echo "📦 Clonando repositório..."
+              git clone git@github.com:akihirowill/error-budget.git
+            fi
+            
+            cd error-budget
+            
+            # Atualizar código
+            echo "📥 Atualizando código..."
+            git fetch origin
+            git reset --hard origin/main
+            
+            # Deploy com docker-compose
+            echo "🐳 Subindo containers..."
+            docker compose down 2>/dev/null || true
+            docker compose up -d --build
+            
+            echo "✅ Deploy concluído!"
+            docker compose ps

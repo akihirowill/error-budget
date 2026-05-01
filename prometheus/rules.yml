@@ -8,27 +8,17 @@ groups:
           /
           sum(rate(http_requests_total[5m]))
 
-      # ── Burn rate (janela 1h) ────────────────────────────────────
+      # ── Burn rate (já calculado dinamicamente no backend) ────────
+      # As métricas abaixo agora vêm do backend
       - record: job:error_budget_burn_rate:1h
-        expr: |
-          (
-            sum(rate(http_requests_total{status_code=~"5.."}[1h]))
-            /
-            sum(rate(http_requests_total[1h]))
-          ) / 0.01
+        expr: error_budget_burn_rate_1h
 
-      # ── Burn rate (janela 5m) ────────────────────────────────────
       - record: job:error_budget_burn_rate:5m
-        expr: |
-          (
-            sum(rate(http_requests_total{status_code=~"5.."}[5m]))
-            /
-            sum(rate(http_requests_total[5m]))
-          ) / 0.01
+        expr: error_budget_burn_rate_5m
 
       # ── ALERTA: burn rate alto (>2x) ────────────────────────────
       - alert: ErrorBudgetBurnRateHigh
-        expr: job:error_budget_burn_rate:1h > 2
+        expr: error_budget_burn_rate_1h > 2
         for: 5m
         labels:
           severity: warning

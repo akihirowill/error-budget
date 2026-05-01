@@ -138,8 +138,8 @@
       },
       "targets": [
         {
-          "expr": "job:error_budget_burn_rate:1h",
-          "legendFormat": "Burn Rate",
+          "expr": "error_budget_burn_rate_1h",
+          "legendFormat": "Burn Rate 1h",
           "datasource": "Prometheus"
         }
       ]
@@ -205,7 +205,7 @@
       },
       "targets": [
         {
-          "expr": "job:error_budget_burn_rate:5m",
+          "expr": "error_budget_burn_rate_5m",
           "legendFormat": "Burn Rate 5m",
           "datasource": "Prometheus"
         }
@@ -372,12 +372,12 @@
       },
       "targets": [
         {
-          "expr": "job:error_budget_burn_rate:5m",
+          "expr": "error_budget_burn_rate_5m",
           "legendFormat": "Burn Rate 5m",
           "datasource": "Prometheus"
         },
         {
-          "expr": "job:error_budget_burn_rate:1h",
+          "expr": "error_budget_burn_rate_1h",
           "legendFormat": "Burn Rate 1h",
           "datasource": "Prometheus"
         }

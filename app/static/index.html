@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Error Budget Control</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0a0c0f;
+    --surface:   #111318;
+    --border:    #1e2128;
+    --muted:     #2a2d35;
+    --text:      #e8eaf0;
+    --sub:       #6b7280;
+    --green:     #22c55e;
+    --yellow:    #eab308;
+    --orange:    #f97316;
+    --red:       #ef4444;
+    --accent:    #3b82f6;
+    --mono:      'Space Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+
+  /* ── Scanline overlay ─────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(255,255,255,0.015) 2px,
+      rgba(255,255,255,0.015) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  .container { max-width: 960px; margin: 0 auto; }
+
+  /* ── Header ───────────────────────────────────── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 40px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  h1 {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+
+  .tagline {
+    font-size: 12px;
+    color: var(--sub);
+    font-family: var(--mono);
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--sub);
+    letter-spacing: 0.05em;
+  }
+
+  .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  /* ── Grid ─────────────────────────────────────── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-1 { margin-bottom: 16px; }
+
+  /* ── Card ─────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.07), transparent);
+  }
+
+  .card-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--sub);
+    margin-bottom: 12px;
+  }
+
+  /* ── Budget Arc ───────────────────────────────── */
+  .budget-card {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+  }
+
+  .arc-wrap { flex-shrink: 0; position: relative; width: 120px; height: 120px; }
+
+  .arc-wrap svg { width: 120px; height: 120px; transform: rotate(-90deg); }
+
+  .arc-bg { fill: none; stroke: var(--muted); stroke-width: 8; }
+
+  .arc-fill {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    stroke-dasharray: 326.73;
+    stroke-dashoffset: 326.73;
+    transition: stroke-dashoffset 0.8s cubic-bezier(.4,0,.2,1), stroke 0.4s;
+  }
+
+  .arc-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .arc-pct {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .arc-sub {
+    font-size: 10px;
+    color: var(--sub);
+    font-family: var(--mono);
+    margin-top: 2px;
+  }
+
+  .budget-info { flex: 1; }
+
+  .budget-title {
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+
+  .budget-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+
+  .budget-key { font-size: 12px; color: var(--sub); }
+
+  .budget-val {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  /* ── Stat ─────────────────────────────────────── */
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-unit {
+    font-size: 11px;
+    color: var(--sub);
+    font-family: var(--mono);
+  }
+
+  /* ── Status bar ───────────────────────────────── */
+  .bar-wrap {
+    height: 6px;
+    background: var(--muted);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.8s cubic-bezier(.4,0,.2,1), background 0.4s;
+  }
+
+  /* ── Fault Injector ───────────────────────────── */
+  .fault-section { margin-bottom: 8px; }
+
+  .fault-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .fault-label span:first-child { font-size: 13px; font-weight: 500; }
+
+  .fault-rate-display {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  /* ── Slider ───────────────────────────────────── */
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: var(--muted);
+    border-radius: 99px;
+    outline: none;
+    margin-bottom: 20px;
+    cursor: pointer;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid var(--bg);
+    box-shadow: 0 0 0 1px var(--accent);
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+  .slider-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: -16px;
+    margin-bottom: 20px;
+  }
+
+  .slider-ticks span {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--sub);
+  }
+
+  /* ── Buttons ──────────────────────────────────── */
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .btn {
+    flex: 1;
+    min-width: 120px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--muted);
+    color: var(--text);
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:active { transform: scale(0.97); }
+
+  .btn-apply { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-apply:hover { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+  .btn-reset { border-color: var(--red); color: var(--red); }
+  .btn-reset:hover { background: var(--red); color: #fff; }
+
+  /* ── Presets ──────────────────────────────────── */
+  .preset-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .preset-btn {
+    padding: 5px 12px;
+    border-radius: 99px;
+    border: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--sub);
+    transition: all 0.15s;
+  }
+
+  .preset-btn:hover { border-color: var(--text); color: var(--text); }
+
+  /* ── Log ──────────────────────────────────────── */
+  .log {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    height: 140px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  .log::-webkit-scrollbar { width: 4px; }
+  .log::-webkit-scrollbar-track { background: transparent; }
+  .log::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 99px; }
+
+  .log-entry { display: flex; gap: 10px; }
+  .log-ts { color: var(--sub); flex-shrink: 0; }
+  .log-ok  { color: var(--green); }
+  .log-warn { color: var(--yellow); }
+  .log-err { color: var(--red); }
+  .log-info { color: var(--accent); }
+
+  /* ── Traffic generator ────────────────────────── */
+  .traffic-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .traffic-label { font-size: 13px; flex: 1; }
+
+  .traffic-input {
+    width: 70px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+    text-align: center;
+  }
+
+  .traffic-input:focus { border-color: var(--accent); }
+
+  /* ── Alert banner ─────────────────────────────── */
+  .alert {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid;
+  }
+
+  .alert.show { display: flex; }
+  .alert-warn { background: rgba(234,179,8,0.08); border-color: rgba(234,179,8,0.3); color: var(--yellow); }
+  .alert-crit { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.3); color: var(--red); }
+
+  /* ── Color helpers ────────────────────────────── */
+  .c-green  { color: var(--green); }
+  .c-yellow { color: var(--yellow); }
+  .c-orange { color: var(--orange); }
+  .c-red    { color: var(--red); }
+  .c-accent { color: var(--accent); }
+  .c-sub    { color: var(--sub); }
+
+  /* ── Endpoint pill ────────────────────────────── */
+  .endpoint-grid { display: flex; flex-direction: column; gap: 8px; }
+
+  .ep-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .ep-row:hover { border-color: var(--accent); }
+  .ep-row.active { border-color: var(--accent); background: rgba(59,130,246,0.06); }
+
+  .ep-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .ep-name { font-family: var(--mono); font-size: 12px; flex: 1; }
+  .ep-desc { font-size: 11px; color: var(--sub); }
+
+  @media (max-width: 640px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .budget-card { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">EB</div>
+      <div>
+        <h1>Error Budget Control</h1>
+        <div class="tagline">SLO · SLI · Burn Rate</div>
+      </div>
+    </div>
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      LIVE · <span id="last-update">--</span>
+    </div>
+  </header>
+
+  <!-- Alert banner -->
+  <div id="alert-banner" class="alert"></div>
+
+  <!-- Row 1: Budget arc + stats -->
+  <div class="grid-2" style="grid-template-columns: 1.4fr 1fr;">
+
+    <!-- Error Budget Arc -->
+    <div class="card">
+      <div class="card-label">Error Budget</div>
+      <div class="budget-card">
+        <div class="arc-wrap">
+          <svg viewBox="0 0 120 120">
+            <circle class="arc-bg" cx="60" cy="60" r="52"/>
+            <circle id="arc-fill" class="arc-fill" cx="60" cy="60" r="52"/>
+          </svg>
+          <div class="arc-center">
+            <div class="arc-pct" id="arc-pct">0%</div>
+            <div class="arc-sub">consumido</div>
+          </div>
+        </div>
+        <div class="budget-info">
+          <div class="budget-title">SLO: <span class="c-accent" style="font-family:var(--mono)" id="slo-display">99.0%</span></div>
+          <div class="budget-row">
+            <span class="budget-key">Consumido</span>
+            <span class="budget-val" id="b-consumed">—</span>
+          </div>
+          <div class="budget-row">
+            <span class="budget-key">Restante</span>
+            <span class="budget-val" id="b-remaining">—</span>
+          </div>
+          <div class="budget-row">
+            <span class="budget-key">Error rate</span>
+            <span class="budget-val" id="b-errrate">—</span>
+          </div>
+          <div class="budget-row">
+            <span class="budget-key">Total req.</span>
+            <span class="budget-val" id="b-total">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Burn Rate + Erros -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="card" style="flex:1;">
+        <div class="card-label">Erros injetados</div>
+        <div class="stat-value c-red" id="s-errors">—</div>
+        <div class="stat-unit">requisições com erro</div>
+        <div class="bar-wrap">
+          <div class="bar-fill" id="bar-errors" style="width:0%;background:var(--red)"></div>
+        </div>
+      </div>
+      <div class="card" style="flex:1;">
+        <div class="card-label">Taxa de falha atual</div>
+        <div class="stat-value" id="s-faultrate">0%</div>
+        <div class="stat-unit">configurado no injetor</div>
+        <div class="bar-wrap">
+          <div class="bar-fill" id="bar-fault" style="width:0%;background:var(--accent)"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Row 2: Fault Injector + Endpoints -->
+  <div class="grid-2">
+
+    <!-- SLO Configuration -->
+    <div class="card">
+      <div class="card-label">Configuração de SLO</div>
+
+      <div class="preset-row">
+        <button class="preset-btn" onclick="setSLO(0.95)">95%</button>
+        <button class="preset-btn" onclick="setSLO(0.99)">99%</button>
+        <button class="preset-btn" onclick="setSLO(0.999)">99.9%</button>
+        <button class="preset-btn" onclick="setSLO(0.9999)">99.99%</button>
+      </div>
+
+      <div class="fault-section">
+        <div class="fault-label">
+          <span>SLO Alvo</span>
+          <span class="fault-rate-display" id="slo-input-display">99.0%</span>
+        </div>
+        <input type="range" id="slo-slider" min="90" max="9999" value="9900" step="1"
+               oninput="onSLOSlider(this.value)">
+        <div class="slider-ticks">
+          <span>90%</span><span>95%</span><span>99%</span><span>99.9%</span><span>99.99%</span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-apply" onclick="applySLO()">▶ APLICAR SLO</button>
+      </div>
+    </div>
+
+    <!-- Fault Injector -->
+    <div class="card">
+      <div class="card-label">Injetor de Falhas</div>
+
+      <div class="preset-row">
+        <button class="preset-btn" onclick="setPreset(0)">OFF</button>
+        <button class="preset-btn" onclick="setPreset(0.05)">5%</button>
+        <button class="preset-btn" onclick="setPreset(0.1)">10%</button>
+        <button class="preset-btn" onclick="setPreset(0.3)">30%</button>
+        <button class="preset-btn" onclick="setPreset(0.5)">50%</button>
+        <button class="preset-btn" onclick="setPreset(1)">100%</button>
+      </div>
+
+      <div class="fault-section">
+        <div class="fault-label">
+          <span>Taxa de erros</span>
+          <span class="fault-rate-display" id="slider-display">0%</span>
+        </div>
+        <input type="range" id="fault-slider" min="0" max="100" value="0"
+               oninput="onSlider(this.value)">
+        <div class="slider-ticks">
+          <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-apply" onclick="applyFault()">▶ APLICAR</button>
+        <button class="btn btn-reset" onclick="resetAll()">⟳ RESET</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Row 3: Endpoints -->
+  <div class="grid-1">
+    <div class="card">
+      <div class="card-label">Gerador de Tráfego</div>
+
+      <div class="traffic-row">
+        <span class="traffic-label">Requisições</span>
+        <input type="number" id="req-count" class="traffic-input" value="100" min="1" max="9999">
+      </div>
+
+      <div class="endpoint-grid" id="endpoint-list">
+        <div class="ep-row active" data-ep="/healthy" onclick="selectEp(this)">
+          <div class="ep-dot" style="background:var(--green)"></div>
+          <span class="ep-name">/healthy</span>
+          <span class="ep-desc">sempre 200</span>
+        </div>
+        <div class="ep-row" data-ep="/unstable" onclick="selectEp(this)">
+          <div class="ep-dot" style="background:var(--yellow)"></div>
+          <span class="ep-name">/unstable</span>
+          <span class="ep-desc">falha conforme taxa</span>
+        </div>
+        <div class="ep-row" data-ep="/slow" onclick="selectEp(this)">
+          <div class="ep-dot" style="background:var(--orange)"></div>
+          <span class="ep-name">/slow</span>
+          <span class="ep-desc">latência 1–3s</span>
+        </div>
+      </div>
+
+      <div class="btn-row" style="margin-top:14px;">
+        <button class="btn btn-apply" onclick="sendTraffic()" id="traffic-btn">▶ ENVIAR</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Log -->
+  <div class="grid-1">
+    <div class="card">
+      <div class="card-label">Activity Log</div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let pendingRate = 0;
+  let selectedEp = '/healthy';
+  let trafficRunning = false;
+
+  // ── SLO Slider ─────────────────────────────────────
+  function onSLOSlider(v) {
+    const sloPercent = v / 100;
+    document.getElementById('slo-input-display').textContent = sloPercent.toFixed(2) + '%';
+  }
+
+  function setSLO(target) {
+    const sliderValue = Math.round(target * 10000);
+    document.getElementById('slo-slider').value = sliderValue;
+    onSLOSlider(sliderValue);
+  }
+
+  async function applySLO() {
+    try {
+      const sliderValue = parseInt(document.getElementById('slo-slider').value);
+      const targetSLO = sliderValue / 10000;
+      const r = await fetch(`/slo/set/${targetSLO}`, { method: 'POST' });
+      const d = await r.json();
+      log(`SLO definido: ${(d.slo_target_set * 100).toFixed(2)}%`, 'ok');
+      await refreshStatus();
+    } catch(e) { log('Erro ao aplicar SLO: ' + e.message, 'err'); }
+  }
+
+  // ── Slider ────────────────────────────────────────
+  function onSlider(v) {
+    pendingRate = v / 100;
+    document.getElementById('slider-display').textContent = v + '%';
+  }
+
+  function setPreset(rate) {
+    pendingRate = rate;
+    document.getElementById('fault-slider').value = Math.round(rate * 100);
+    document.getElementById('slider-display').textContent = Math.round(rate * 100) + '%';
+  }
+
+  // ── Apply fault ───────────────────────────────────
+  async function applyFault() {
+    try {
+      const r = await fetch(`/fault/set/${pendingRate}`, { method: 'POST' });
+      const d = await r.json();
+      log(`Taxa de falha definida: ${(d.fault_rate_set * 100).toFixed(0)}%`,
+          d.fault_rate_set > 0 ? 'warn' : 'ok');
+      await refreshStatus();
+    } catch(e) { log('Erro ao aplicar fault rate: ' + e.message, 'err'); }
+  }
+
+  // ── Reset ─────────────────────────────────────────
+  async function resetAll() {
+    try {
+      await fetch('/fault/reset', { method: 'POST' });
+      pendingRate = 0;
+      document.getElementById('fault-slider').value = 0;
+      document.getElementById('slider-display').textContent = '0%';
+      log('Contadores resetados — janela SLO reiniciada', 'ok');
+      await refreshStatus();
+    } catch(e) { log('Erro ao resetar: ' + e.message, 'err'); }
+  }
+
+  // ── Endpoint select ───────────────────────────────
+  function selectEp(el) {
+    document.querySelectorAll('.ep-row').forEach(r => r.classList.remove('active'));
+    el.classList.add('active');
+    selectedEp = el.dataset.ep;
+  }
+
+  // ── Traffic generator ─────────────────────────────
+  async function sendTraffic() {
+    if (trafficRunning) return;
+    const count = parseInt(document.getElementById('req-count').value) || 100;
+    trafficRunning = true;
+    const btn = document.getElementById('traffic-btn');
+    btn.textContent = '⏳ ENVIANDO...';
+    btn.disabled = true;
+    log(`Enviando ${count} requisições para ${selectedEp}...`, 'info');
+    let ok = 0, err = 0;
+    for (let i = 0; i < count; i++) {
+      try {
+        const r = await fetch(selectedEp);
+        if (r.ok) ok++; else err++;
+      } catch { err++; }
+      if ((i + 1) % 20 === 0) await refreshStatus();
+    }
+    log(`Tráfego concluído — ${ok} ok · ${err} erros`, err > 0 ? 'warn' : 'ok');
+    trafficRunning = false;
+    btn.textContent = '▶ ENVIAR';
+    btn.disabled = false;
+    await refreshStatus();
+  }
+
+  // ── Status refresh ────────────────────────────────
+  async function refreshStatus() {
+    try {
+      const d = await (await fetch('/fault/status')).json();
+      updateUI(d);
+    } catch(e) { /* silent */ }
+  }
+
+  function updateUI(d) {
+    const consumed = d.error_budget_consumed;
+    const remaining = d.error_budget_remaining;
+    const errRate = d.error_rate;
+    const faultRate = d.fault_rate;
+    const sloTarget = d.slo_target;
+
+    // SLO Display
+    document.getElementById('slo-display').textContent = (sloTarget * 100).toFixed(1) + '%';
+    document.getElementById('slo-slider').value = Math.round(sloTarget * 10000);
+    document.getElementById('slo-input-display').textContent = (sloTarget * 100).toFixed(2) + '%';
+
+    // Arc
+    const circ = 326.73;
+    const offset = circ * (1 - consumed);
+    const arc = document.getElementById('arc-fill');
+    arc.style.strokeDashoffset = offset;
+    arc.style.stroke = consumed < 0.5 ? '#22c55e'
+                      : consumed < 0.8 ? '#eab308'
+                      : consumed < 0.95 ? '#f97316' : '#ef4444';
+
+    document.getElementById('arc-pct').textContent = (consumed * 100).toFixed(1) + '%';
+    document.getElementById('arc-pct').className = 'arc-pct ' + colorClass(consumed, [0.5, 0.8, 0.95]);
+
+    // Stats
+    setText('b-consumed',  (consumed  * 100).toFixed(2) + '%', colorClass(consumed,  [0.5, 0.8, 0.95]));
+    setText('b-remaining', (remaining * 100).toFixed(2) + '%', colorClass(1 - remaining, [0.5, 0.8, 0.95]));
+    setText('b-errrate',   (errRate   * 100).toFixed(2) + '%', errRate > 0.01 ? 'c-red' : errRate > 0.005 ? 'c-yellow' : 'c-green');
+    setText('b-total',     d.total_requests.toLocaleString());
+
+    setText('s-errors', d.error_requests.toLocaleString());
+    document.getElementById('bar-errors').style.width = Math.min(consumed * 100, 100) + '%';
+
+    setText('s-faultrate', (faultRate * 100).toFixed(0) + '%');
+    document.getElementById('bar-fault').style.width = (faultRate * 100) + '%';
+
+    // Alert
+    const banner = document.getElementById('alert-banner');
+    if (consumed >= 0.95) {
+      banner.className = 'alert alert-crit show';
+      banner.innerHTML = '⚠ Error budget crítico — ' + (consumed * 100).toFixed(1) + '% consumido. Intervenção necessária.';
+    } else if (consumed >= 0.8) {
+      banner.className = 'alert alert-warn show';
+      banner.innerHTML = '⚡ Error budget em alerta — ' + (consumed * 100).toFixed(1) + '% consumido.';
+    } else {
+      banner.className = 'alert';
+    }
+
+    // Timestamp
+    document.getElementById('last-update').textContent = new Date().toLocaleTimeString('pt-BR');
+  }
+
+  function setText(id, text, cls) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    if (cls) el.className = 'budget-val ' + cls;
+  }
+
+  function colorClass(v, thresholds) {
+    if (v >= thresholds[2]) return 'c-red';
+    if (v >= thresholds[1]) return 'c-orange';
+    if (v >= thresholds[0]) return 'c-yellow';
+    return 'c-green';
+  }
+
+  // ── Log ───────────────────────────────────────────
+  function log(msg, type = 'info') {
+    const el = document.getElementById('log');
+    const ts = new Date().toLocaleTimeString('pt-BR');
+    const cls = { ok: 'log-ok', warn: 'log-warn', err: 'log-err', info: 'log-info' }[type] || 'log-info';
+    el.innerHTML += `<div class="log-entry"><span class="log-ts">${ts}</span><span class="${cls}">${msg}</span></div>`;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // ── Polling ───────────────────────────────────────
+  refreshStatus();
+  setInterval(refreshStatus, 5000);
+  log('Painel iniciado — atualizando a cada 5s', 'info');
+</script>
+</body>
+</html>

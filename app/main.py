@@ -1,9 +1,14 @@
 import random
 import time
 from fastapi import FastAPI, Response
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 app = FastAPI(title="Error Budget POC")
+
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # ──────────────────────────────────────────
 # Métricas Prometheus
@@ -35,22 +40,22 @@ SLO_TARGET = Gauge(
 _total_requests = 0
 _error_requests = 0
 _force_error_rate = 0.0   # 0.0 = sem forçar erros extras
+_slo_target = 0.99        # SLO: 99% de disponibilidade (variável)
 
-SLO_TARGET.set(0.99)  # SLO: 99% de disponibilidade
+SLO_TARGET.set(_slo_target)
 
 # ──────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────
 def _update_error_budget():
     """Recalcula e expõe o consumo do error budget."""
-    global _total_requests, _error_requests
+    global _total_requests, _error_requests, _slo_target
     if _total_requests == 0:
         ERROR_BUDGET_CONSUMED.set(0)
         return
     error_rate = _error_requests / _total_requests
-    slo = 0.99
-    allowed_error_rate = 1 - slo          # 1%
-    consumed = min(error_rate / allowed_error_rate, 1.0)
+    allowed_error_rate = 1 - _slo_target
+    consumed = min(error_rate / allowed_error_rate, 1.0) if allowed_error_rate > 0 else 0
     ERROR_BUDGET_CONSUMED.set(consumed)
 
 
@@ -113,17 +118,16 @@ def set_fault_rate(rate: float):
 @app.get("/fault/status")
 def fault_status():
     """Retorna configuração atual de injeção de falhas e estado do SLO."""
-    global _total_requests, _error_requests, _force_error_rate
+    global _total_requests, _error_requests, _force_error_rate, _slo_target
     error_rate = (_error_requests / _total_requests) if _total_requests > 0 else 0
-    slo = 0.99
-    allowed_error_rate = 1 - slo
+    allowed_error_rate = 1 - _slo_target
     consumed = min(error_rate / allowed_error_rate, 1.0) if allowed_error_rate > 0 else 0
     return {
         "fault_rate": _force_error_rate,
         "total_requests": _total_requests,
         "error_requests": _error_requests,
         "error_rate": round(error_rate, 4),
-        "slo_target": slo,
+        "slo_target": _slo_target,
         "error_budget_consumed": round(consumed, 4),
         "error_budget_remaining": round(1.0 - consumed, 4),
     }
@@ -138,6 +142,31 @@ def reset_counters():
     _force_error_rate = 0.0
     ERROR_BUDGET_CONSUMED.set(0)
     return {"reset": True}
+
+
+# ──────────────────────────────────────────
+# SLO Configuration
+# ──────────────────────────────────────────
+@app.post("/slo/set/{target}")
+def set_slo(target: float):
+    """
+    Define o SLO alvo.
+    target: 0.0 a 1.0 (ex: 0.99 = 99%)
+    """
+    global _slo_target
+    _slo_target = max(0.0, min(1.0, target))
+    SLO_TARGET.set(_slo_target)
+    _update_error_budget()
+    return {"slo_target_set": _slo_target}
+
+
+# ──────────────────────────────────────────
+# UI - Dashboard
+# ──────────────────────────────────────────
+@app.get("/")
+def serve_ui():
+    """Serve the dashboard UI."""
+    return FileResponse("static/index.html", media_type="text/html")
 
 
 # ──────────────────────────────────────────

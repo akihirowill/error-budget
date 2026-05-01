@@ -555,10 +555,10 @@
           <span>SLO Alvo</span>
           <span class="fault-rate-display" id="slo-input-display">99.0%</span>
         </div>
-        <input type="range" id="slo-slider" min="90" max="9999" value="9900" step="1"
+        <input type="range" id="slo-slider" min="9000" max="10000" value="9900" step="10"
                oninput="onSLOSlider(this.value)">
         <div class="slider-ticks">
-          <span>90%</span><span>95%</span><span>99%</span><span>99.9%</span><span>99.99%</span>
+          <span>90%</span><span>93%</span><span>95%</span><span>99%</span><span>100%</span>
         </div>
       </div>
 
@@ -652,8 +652,8 @@
 
   // ── SLO Slider ─────────────────────────────────────
   function onSLOSlider(v) {
-    const sloPercent = v / 100;
-    document.getElementById('slo-input-display').textContent = sloPercent.toFixed(2) + '%';
+    const sloDecimal = v / 10000;
+    document.getElementById('slo-input-display').textContent = (sloDecimal * 100).toFixed(2) + '%';
   }
 
   function setSLO(target) {
@@ -756,7 +756,8 @@
 
     // SLO Display
     document.getElementById('slo-display').textContent = (sloTarget * 100).toFixed(1) + '%';
-    document.getElementById('slo-slider').value = Math.round(sloTarget * 10000);
+    const sloSliderValue = Math.round(sloTarget * 10000);
+    document.getElementById('slo-slider').value = sloSliderValue;
     document.getElementById('slo-input-display').textContent = (sloTarget * 100).toFixed(2) + '%';
 
     // Arc
